@@ -1,6 +1,14 @@
 import { useState, useCallback, useRef } from "react";
+import { api } from "../lib/api";
+import { toast } from "sonner";
 
-export type GameState = "idle" | "waiting" | "ready" | "clicked" | "too-early" | "result";
+export type GameState =
+  | "idle"
+  | "waiting"
+  | "ready"
+  | "clicked"
+  | "too-early"
+  | "result";
 
 export interface GameResult {
   reactionTime: number;
@@ -31,44 +39,75 @@ export const useReactionGame = () => {
   const [gameState, setGameState] = useState<GameState>("idle");
   const [result, setResult] = useState<GameResult | null>(null);
   const [attempts, setAttempts] = useState(0);
-  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const roundIdRef = useRef<string | null>(null);
+
   const startTimeRef = useRef<number>(0);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const startGame = useCallback(() => {
-    setGameState("waiting");
-    setResult(null);
-    
-    // Random delay between 1.5 and 5 seconds
-    const delay = Math.random() * 3500 + 1500;
-    
-    timeoutRef.current = setTimeout(() => {
-      startTimeRef.current = performance.now();
-      setGameState("ready");
-    }, delay);
-  }, []);
-
-  const handleClick = useCallback(() => {
-    if (gameState === "waiting") {
-      // Too early!
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      setGameState("too-early");
+  const startGame = useCallback(async (wallet: string) => {
+    if (!wallet) {
+      toast.error("Connect wallet to play!");
       return;
     }
-    
-    if (gameState === "ready") {
-      const endTime = performance.now();
-      const reactionTime = Math.round(endTime - startTimeRef.current);
-      const score = Math.round(calculateScore(reactionTime));
-      const tier = getTier(reactionTime);
-      
-      setResult({ reactionTime, score, tier });
-      setGameState("result");
-      setAttempts((prev) => prev + 1);
+
+    setGameState("waiting");
+    setResult(null);
+
+    try {
+      const { roundId, delay } = await api.startGame(wallet);
+      roundIdRef.current = roundId;
+      timeoutRef.current = setTimeout(() => {
+        startTimeRef.current = performance.now();
+        setGameState("ready");
+      }, delay);
+    } catch (error) {
+      setGameState("idle");
+      toast.error("Failed to start the game session!");
     }
-  }, [gameState]);
+  }, []);
+
+  const handleClick = useCallback(
+    async (wallet: string) => {
+      if (gameState === "waiting") {
+        // Too early!
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+        setGameState("too-early");
+        return;
+      }
+
+      if (gameState === "ready" && roundIdRef.current) {
+        const endTime = performance.now();
+        const reactionTime = Math.round(endTime - startTimeRef.current);
+
+        setIsSubmitting(true);
+
+        try {
+          const { score } = await api.submitScore({
+            wallet,
+            roundId: roundIdRef.current,
+            reactionTime,
+          });
+
+          setResult({
+            reactionTime,
+            score,
+            tier: getTier(reactionTime),
+          });
+          setGameState("result");
+          setAttempts((prev) => prev + 1);
+        } catch (error) {
+          toast.error("Failed to submit score");
+          setGameState("idle");
+        } finally {
+          setIsSubmitting(false);
+        }
+      }
+    },
+    [gameState]
+  );
 
   const resetGame = useCallback(() => {
     if (timeoutRef.current) {
@@ -87,6 +126,7 @@ export const useReactionGame = () => {
     gameState,
     result,
     attempts,
+    isSubmitting,
     startGame,
     handleClick,
     resetGame,

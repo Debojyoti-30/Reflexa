@@ -18,7 +18,7 @@ export const GameLobby = () => {
     <section className="relative min-h-screen flex items-center justify-center py-20">
       {/* Background */}
       <div className="absolute inset-0 cyber-grid opacity-20" />
-      
+
       <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-2xl mx-auto">
           {/* Game Card */}
@@ -32,9 +32,13 @@ export const GameLobby = () => {
               <motion.div
                 animate={{ rotate: [0, 10, -10, 0] }}
                 transition={{ duration: 2, repeat: Infinity }}
-                className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-cyber flex items-center justify-center"
+                className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-cyber flex items-center justify-center overflow-hidden"
               >
-                <Zap className="w-10 h-10 text-primary-foreground" />
+                <img
+                  src="/logo.png"
+                  className="w-14 h-14 object-contain"
+                  alt="Game Logo"
+                />
               </motion.div>
               <h2 className="font-display text-3xl font-bold neon-text mb-2">
                 Reaction Time Challenge
@@ -109,7 +113,8 @@ export const GameLobby = () => {
             {/* Cooldown Timer Placeholder */}
             <div className="mt-4 text-center">
               <p className="text-xs text-muted-foreground">
-                Next cooldown reset in: <span className="text-primary font-mono">--:--:--</span>
+                Next cooldown reset in:{" "}
+                <span className="text-primary font-mono">--:--:--</span>
               </p>
             </div>
           </motion.div>
