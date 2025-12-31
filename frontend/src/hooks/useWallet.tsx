@@ -1,64 +1,51 @@
-import { useState, useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { toast } from "sonner";
-
-interface WalletState {
-  isConnected: boolean;
-  address: string;
-  balance: string;
-  network: string;
-}
+import { chainConfig } from "@/config/chain";
 
 export const useWallet = () => {
-  const [walletState, setWalletState] = useState<WalletState>({
-    isConnected: false,
-    address: "",
-    balance: "0",
-    network: "Testnet",
-  });
+  const { login, logout, authenticated, user } = usePrivy();
+  const { wallets } = useWallets();
+
+  const primaryWallet = useMemo(() => {
+    return (
+      wallets.find((wallet) => wallet.address === user?.wallet?.address) ||
+      wallets[0]
+    );
+  }, [wallets, user]);
 
   const connect = useCallback(async () => {
-    // TODO: Integrate with wagmi/web3 wallet connection
-    // This is a mock implementation for hackathon demo
-    
     try {
-      // Simulate wallet connection delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      // Mock connected state
-      const mockAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f7C123";
-      const mockBalance = "1,250";
-      
-      setWalletState({
-        isConnected: true,
-        address: mockAddress,
-        balance: mockBalance,
-        network: "Testnet",
-      });
-      
-      toast.success("Wallet Connected!", {
-        description: `Connected to ${mockAddress.slice(0, 6)}...${mockAddress.slice(-4)}`,
-      });
+      await login();
     } catch (error) {
+      console.error("Login failed:", error);
       toast.error("Connection Failed", {
-        description: "Please make sure MetaMask is installed and unlocked.",
+        description: "An error occurred while connecting your wallet.",
       });
     }
-  }, []);
+  }, [login]);
 
-  const disconnect = useCallback(() => {
-    setWalletState({
-      isConnected: false,
-      address: "",
-      balance: "0",
-      network: "Testnet",
-    });
-    
-    toast.info("Wallet Disconnected");
-  }, []);
+  const disconnect = useCallback(async () => {
+    try {
+      await logout();
+      toast.info("Wallet Disconnected");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  }, [logout]);
 
   return {
-    ...walletState,
+    isConnected: authenticated,
+    address: primaryWallet?.address || user?.wallet?.address || "",
+    balance: "0", // Balance fetching can be added later if needed
+    network: primaryWallet?.chainId
+      ? primaryWallet.chainId === `eip155:${chainConfig.id}`
+        ? chainConfig.name
+        : "Other Network"
+      : chainConfig.name,
     connect,
     disconnect,
+    primaryWallet,
+    user,
   };
 };

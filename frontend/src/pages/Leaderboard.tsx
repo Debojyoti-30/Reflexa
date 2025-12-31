@@ -1,22 +1,9 @@
 import { motion } from "framer-motion";
-import { Trophy, Medal, Crown, User } from "lucide-react";
+import { Trophy, Medal, Crown, User, Loader2 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
-
-// Mock leaderboard data
-const leaderboardData = [
-  { rank: 1, address: "0x742d35Cc6634C0532925a3b844Bc9e7595f7C123", score: 985, time: "142ms" },
-  { rank: 2, address: "0x8Ba1f109551bD432803012645Ac136ddd64DBa72", score: 962, time: "156ms" },
-  { rank: 3, address: "0xdD870fA1b7C4700F2BD7f44238821C26f7392148", score: 945, time: "168ms" },
-  { rank: 4, address: "0x583031D1113aD414F02576BD6afaBfb302140225", score: 923, time: "178ms" },
-  { rank: 5, address: "0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB", score: 908, time: "189ms" },
-  { rank: 6, address: "0x14723A09ACff6D2A60DcdF7aA4AFf308FDDC160C", score: 892, time: "198ms" },
-  { rank: 7, address: "0xCA35b7d915458EF540aDe6068dFe2F44E8fa733c", score: 875, time: "212ms" },
-  { rank: 8, address: "0x1aE0EA34a72D944a8C7603FfB3eC30a6669E454C", score: 856, time: "225ms" },
-  { rank: 9, address: "0x0A098Eda01Ce92ff4A4CCb7A4fFFb5A43EBC70DC", score: 834, time: "238ms" },
-  { rank: 10, address: "0x6C6E5f3C2ba9E1ABdc0E9d3E8D0a7F19b97F0A1c", score: 812, time: "251ms" },
-];
-
-const currentUserAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f7C123";
+import { useEffect, useState } from "react";
+import { api, LeaderboardEntry } from "@/lib/api";
+import { useWallet } from "@/hooks/useWallet";
 
 const getRankIcon = (rank: number) => {
   switch (rank) {
@@ -27,7 +14,11 @@ const getRankIcon = (rank: number) => {
     case 3:
       return <Medal className="w-5 h-5 text-amber-600" />;
     default:
-      return <span className="w-5 text-center font-mono text-muted-foreground">{rank}</span>;
+      return (
+        <span className="w-5 text-center font-mono text-muted-foreground">
+          {rank}
+        </span>
+      );
   }
 };
 
@@ -45,6 +36,26 @@ const getRankStyle = (rank: number) => {
 };
 
 const Leaderboard = () => {
+  const { address: currentUserAddress } = useWallet();
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>(
+    []
+  );
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      try {
+        const data = await api.getLeaderboard();
+        setLeaderboardData(data);
+      } catch (error) {
+        console.error("Failed to fetch leaderboard:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchLeaderboard();
+  }, []);
+
   const shortenAddress = (addr: string) => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
@@ -52,10 +63,10 @@ const Leaderboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       {/* Background */}
       <div className="fixed inset-0 cyber-grid opacity-20 pointer-events-none" />
-      
+
       <div className="container mx-auto px-4 pt-24 pb-12 relative z-10">
         {/* Header */}
         <motion.div
@@ -90,60 +101,79 @@ const Leaderboard = () => {
           </div>
 
           {/* Table Rows */}
-          <div className="space-y-2 mt-4">
-            {leaderboardData.map((player, index) => {
-              const isCurrentUser = player.address === currentUserAddress;
-              
-              return (
-                <motion.div
-                  key={player.rank}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  whileHover={{ scale: 1.02, x: 5 }}
-                  className={`
-                    grid grid-cols-12 gap-4 px-4 py-4 rounded-xl border
-                    ${getRankStyle(player.rank)}
-                    ${isCurrentUser ? "ring-2 ring-primary" : ""}
-                    transition-all duration-200
-                  `}
-                >
-                  {/* Rank */}
-                  <div className="col-span-1 flex items-center">
-                    {getRankIcon(player.rank)}
-                  </div>
+          <div className="space-y-2 mt-4 min-h-[400px]">
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                <p className="text-muted-foreground font-display text-sm tracking-widest uppercase">
+                  Fetching stats from the arena...
+                </p>
+              </div>
+            ) : leaderboardData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <Trophy className="w-12 h-12 text-muted/30" />
+                <p className="text-muted-foreground font-display text-sm tracking-widest uppercase">
+                  No records yet. Be the first!
+                </p>
+              </div>
+            ) : (
+              leaderboardData.map((player, index) => {
+                const rank = index + 1;
+                const isCurrentUser = player.wallet === currentUserAddress;
 
-                  {/* Player */}
-                  <div className="col-span-6 sm:col-span-5 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-cyber flex items-center justify-center">
-                      <User className="w-4 h-4 text-primary-foreground" />
+                return (
+                  <motion.div
+                    key={`${player.wallet}-${index}`}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    whileHover={{ scale: 1.02, x: 5 }}
+                    className={`
+                      grid grid-cols-12 gap-4 px-4 py-4 rounded-xl border
+                      ${getRankStyle(rank)}
+                      ${isCurrentUser ? "ring-2 ring-primary" : ""}
+                      transition-all duration-200
+                    `}
+                  >
+                    {/* Rank */}
+                    <div className="col-span-1 flex items-center">
+                      {getRankIcon(rank)}
                     </div>
-                    <div className="flex flex-col">
-                      <span className="font-mono text-sm">
-                        {shortenAddress(player.address)}
+
+                    {/* Player */}
+                    <div className="col-span-6 sm:col-span-5 flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-cyber flex items-center justify-center">
+                        <User className="w-4 h-4 text-primary-foreground" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="font-mono text-sm leading-none mb-1">
+                          {shortenAddress(player.wallet)}
+                        </span>
+                        {isCurrentUser && (
+                          <span className="text-[10px] font-bold uppercase text-primary tracking-tighter">
+                            You
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Time */}
+                    <div className="col-span-2 sm:col-span-3 flex items-center justify-end">
+                      <span className="font-mono text-sm text-neon-cyan">
+                        {player.reactionTime}ms
                       </span>
-                      {isCurrentUser && (
-                        <span className="text-xs text-primary">You</span>
-                      )}
                     </div>
-                  </div>
 
-                  {/* Time */}
-                  <div className="col-span-2 sm:col-span-3 flex items-center justify-end">
-                    <span className="font-mono text-sm text-neon-cyan">
-                      {player.time}
-                    </span>
-                  </div>
-
-                  {/* Score */}
-                  <div className="col-span-3 flex items-center justify-end">
-                    <span className="font-display font-bold text-lg">
-                      {player.score}
-                    </span>
-                  </div>
-                </motion.div>
-              );
-            })}
+                    {/* Score */}
+                    <div className="col-span-3 flex items-center justify-end">
+                      <span className="font-display font-bold text-lg">
+                        {player.score}
+                      </span>
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
           </div>
         </motion.div>
 

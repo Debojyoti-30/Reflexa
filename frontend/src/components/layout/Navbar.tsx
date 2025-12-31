@@ -31,9 +31,13 @@ export const Navbar = () => {
             <motion.div
               whileHover={{ rotate: 360 }}
               transition={{ duration: 0.5 }}
-              className="w-10 h-10 rounded-lg bg-gradient-cyber flex items-center justify-center"
+              className="w-10 h-10 rounded-lg bg-gradient-cyber flex items-center justify-center overflow-hidden"
             >
-              <Zap className="w-6 h-6 text-primary-foreground" />
+              <img
+                src="/logo.png"
+                className="w-7 h-7 object-contain"
+                alt="Reflexa Logo"
+              />
             </motion.div>
             <span className="font-display font-bold text-xl neon-text hidden sm:block">
               REFLEXA
@@ -45,7 +49,7 @@ export const Navbar = () => {
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
-              
+
               return (
                 <Link key={item.path} to={item.path}>
                   <motion.div
@@ -63,7 +67,11 @@ export const Navbar = () => {
                       <motion.div
                         layoutId="navbar-indicator"
                         className="absolute inset-0 bg-primary/10 rounded-lg border border-primary/30"
-                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                        transition={{
+                          type: "spring",
+                          bounce: 0.2,
+                          duration: 0.6,
+                        }}
                       />
                     )}
                   </motion.div>
@@ -84,8 +92,8 @@ export const Navbar = () => {
                 <span className="font-semibold text-sm">{balance} SKILL</span>
               </motion.div>
             )}
-            
-            {isConnected ? (
+
+            {isConnected && address ? (
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -93,7 +101,9 @@ export const Navbar = () => {
               >
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border border-primary/30">
                   <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
-                  <span className="font-mono text-sm">{shortenAddress(address)}</span>
+                  <span className="font-mono text-sm">
+                    {shortenAddress(address)}
+                  </span>
                 </div>
                 <CyberButton
                   variant="ghost"

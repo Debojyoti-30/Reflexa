@@ -43,7 +43,7 @@ const itemVariants = {
 };
 
 export const HeroSection = () => {
-  const { isConnected, connect } = useWallet();
+  const { isConnected, address, connect } = useWallet();
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -113,7 +113,7 @@ export const HeroSection = () => {
             variants={itemVariants}
             className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16"
           >
-            {isConnected ? (
+            {isConnected && address ? (
               <Link to="/game">
                 <div className="relative group">
                   {/* Glow layer */}
@@ -153,9 +153,11 @@ export const HeroSection = () => {
               </div>
             )}
 
-            <CyberButton variant="outline" size="lg">
-              How It Works
-            </CyberButton>
+            <Link to="/docs">
+              <CyberButton variant="outline" size="lg">
+                How It Works
+              </CyberButton>
+            </Link>
           </motion.div>
 
           {/* Feature Cards */}
