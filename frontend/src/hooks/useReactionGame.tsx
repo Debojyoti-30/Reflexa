@@ -13,7 +13,9 @@ export type GameState =
 export interface GameResult {
   reactionTime: number;
   score: number;
-  tier: "legendary" | "excellent" | "good" | "average" | "slow";
+  tier: string;
+  signature?: string;
+  roundId?: string;
 }
 
 const calculateScore = (reactionTime: number): number => {
@@ -85,7 +87,7 @@ export const useReactionGame = () => {
         setIsSubmitting(true);
 
         try {
-          const { score } = await api.submitScore({
+          const { score, signature } = await api.submitScore({
             wallet,
             roundId: roundIdRef.current,
             reactionTime,
@@ -95,6 +97,8 @@ export const useReactionGame = () => {
             reactionTime,
             score,
             tier: getTier(reactionTime),
+            signature,
+            roundId: roundIdRef.current,
           });
           setGameState("result");
           setAttempts((prev) => prev + 1);

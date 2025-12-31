@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Trophy, Medal, Crown, User, Loader2 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { useEffect, useState } from "react";
-import { api, LeaderboardEntry } from "@/lib/api";
+import { api, LeaderboardEntry, GlobalStats } from "@/lib/api";
 import { useWallet } from "@/hooks/useWallet";
 
 const getRankIcon = (rank: number) => {
@@ -40,15 +40,20 @@ const Leaderboard = () => {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>(
     []
   );
+  const [globalStats, setGlobalStats] = useState<GlobalStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
-        const data = await api.getLeaderboard();
-        setLeaderboardData(data);
+        const [lbData, statsData] = await Promise.all([
+          api.getLeaderboard(),
+          api.getGlobalStats(),
+        ]);
+        setLeaderboardData(lbData);
+        setGlobalStats(statsData);
       } catch (error) {
-        console.error("Failed to fetch leaderboard:", error);
+        console.error("Failed to fetch leaderboard data:", error);
       } finally {
         setIsLoading(false);
       }
@@ -185,9 +190,20 @@ const Leaderboard = () => {
           className="max-w-3xl mx-auto mt-8 grid grid-cols-3 gap-4"
         >
           {[
-            { label: "Total Players", value: "2,451" },
-            { label: "Games Played", value: "15,892" },
-            { label: "Rewards Distributed", value: "45,230 SKILL" },
+            {
+              label: "Total Players",
+              value: globalStats?.totalPlayers?.toLocaleString() || "0",
+            },
+            {
+              label: "Games Played",
+              value: globalStats?.totalGames?.toLocaleString() || "0",
+            },
+            {
+              label: "Rewards Distributed",
+              value: `${
+                globalStats?.rewardsDistributed?.toLocaleString() || "0"
+              } SKILL`,
+            },
           ].map((stat, index) => (
             <div
               key={stat.label}

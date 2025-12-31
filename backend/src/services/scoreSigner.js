@@ -1,11 +1,20 @@
-import crypto from "crypto";
+import { ethers } from "ethers";
 
-const PRIVATE_KEY = process.env.SIGNING_SECRET;
-console.log("SIGNING_SECRET loaded:", !!PRIVATE_KEY);
+const PRIVATE_KEY = process.env.SIGNING_PRIVATE_KEY;
+console.log("SIGNING_PRIVATE_KEY loaded:", !!PRIVATE_KEY);
 
-export function signScore(message){
-    return crypto
-        .createHmac("sha256",PRIVATE_KEY)
-        .update(message)
-        .digest("hex");
+const signerWallet = PRIVATE_KEY ? new ethers.Wallet(PRIVATE_KEY) : null;
+
+export async function signScore(walletAddress, roundId, score) {
+  if (!signerWallet) throw new Error("Signer wallet not initialized");
+
+  const messageHash = ethers.solidityPackedKeccak256(
+    ["address", "string", "uint256"],
+    [walletAddress, roundId, score]
+  );
+
+  const signature = await signerWallet.signMessage(
+    ethers.toBeArray(messageHash)
+  );
+  return signature;
 }

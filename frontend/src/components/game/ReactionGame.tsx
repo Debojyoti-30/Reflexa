@@ -9,11 +9,20 @@ import {
   Zap,
   AlertTriangle,
   Clock,
+  Loader2,
+  Link as LinkIcon,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useState } from "react";
+import { ethers } from "ethers";
+import { REFLEXA_ABI, REFLEXA_CONTRACT_ADDRESS } from "@/config/contracts";
+import { chainConfig } from "@/config/chain";
 
-const tierConfig = {
+const tierConfig: Record<
+  string,
+  { color: string; label: string; emoji: string }
+> = {
   legendary: { color: "text-neon-yellow", label: "LEGENDARY", emoji: "🏆" },
   excellent: { color: "text-neon-green", label: "EXCELLENT", emoji: "⚡" },
   good: { color: "text-primary", label: "GOOD", emoji: "🎯" },
@@ -62,10 +71,12 @@ const getStateContent = (state: GameState) => {
 };
 
 export const ReactionGame = () => {
-  const { address } = useWallet();
+  const { isConnected, address, primaryWallet } = useWallet();
   const { gameState, result, startGame, handleClick, playAgain, isSubmitting } =
     useReactionGame();
   const navigate = useNavigate();
+  const [isOnChainSubmitting, setIsOnChainSubmitting] = useState(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
 
   const handleButtonClick = () => {
     if (gameState === "idle" || gameState === "too-early") {
@@ -75,10 +86,52 @@ export const ReactionGame = () => {
     }
   };
 
+  const handleOnChainSubmit = async () => {
+    if (!result?.signature || !result?.roundId || !primaryWallet) {
+      toast.error("Missing verification data");
+      return;
+    }
+
+    setIsOnChainSubmitting(true);
+    try {
+      await primaryWallet.switchChain(chainConfig.id);
+
+      const eip1193Provider = await primaryWallet.getEthereumProvider();
+      const provider = new ethers.BrowserProvider(eip1193Provider);
+      const signer = await provider.getSigner();
+
+      const contract = new ethers.Contract(
+        REFLEXA_CONTRACT_ADDRESS,
+        REFLEXA_ABI,
+        signer
+      );
+
+      const tx = await contract.submitScore(
+        result.roundId,
+        BigInt(result.score),
+        result.signature
+      );
+
+      toast.promise(tx.wait(), {
+        loading: "Confirming on blockchain...",
+        success: (receipt: any) => {
+          setTxHash(receipt.hash);
+          return "Score recorded on-chain!";
+        },
+        error: "Blockchain confirmation failed",
+      });
+    } catch (error: any) {
+      console.error("On-chain submission failed:", error);
+      toast.error(error.message || "On-chain submission failed");
+    } finally {
+      setIsOnChainSubmitting(false);
+    }
+  };
+
   const stateContent = getStateContent(gameState);
 
   if (gameState === "result" && result) {
-    const tier = tierConfig[result.tier];
+    const tier = tierConfig[result.tier] || tierConfig.average;
 
     return (
       <div className="flex-1 flex items-center justify-center p-4 relative z-20">
@@ -91,61 +144,39 @@ export const ReactionGame = () => {
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
-            className="text-7xl mb-6 drop-shadow-[0_0_15px_rgba(186,255,255,0.4)]"
+            className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-primary/10 flex items-center justify-center"
           >
-            {tier.emoji}
+            <span className="text-4xl">{tier.emoji}</span>
           </motion.div>
 
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className={`font-display text-3xl font-bold ${tier.color} mb-8`}
-          >
+          <h2 className={`font-display text-2xl font-black mb-2 ${tier.color}`}>
             {tier.label}
-          </motion.h2>
+          </h2>
 
-          <div className="grid grid-cols-2 gap-4 md:gap-6 mb-10">
-            {/* Reaction Time */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
-              className="p-4 md:p-6 rounded-2xl bg-muted/40 border border-glass-border flex flex-col items-center justify-center"
-            >
-              <p className="text-[10px] md:text-xs text-muted-foreground mb-2 flex items-center gap-2 uppercase tracking-widest font-bold">
-                <Clock className="w-3 h-3" />
-                Reaction
-              </p>
-              <motion.p
-                initial={{ scale: 0.5 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", bounce: 0.5, delay: 0.5 }}
-                className="font-display text-3xl md:text-4xl font-bold neon-text"
-              >
-                {result.reactionTime}
-                <span className="text-lg md:text-xl text-muted-foreground ml-1">
-                  ms
-                </span>
-              </motion.p>
-            </motion.div>
+          <div className="flex flex-col items-center gap-2 mb-8">
+            <div className="text-6xl md:text-7xl font-display font-black tracking-tighter neon-text">
+              {result.reactionTime}ms
+            </div>
+            <div className="text-muted-foreground font-display font-bold uppercase tracking-widest text-sm">
+              Reaction Time
+            </div>
+          </div>
 
-            {/* Score */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.6 }}
-              className="p-4 md:p-6 rounded-2xl bg-muted/40 border border-glass-border flex flex-col items-center justify-center"
-            >
-              <p className="text-[10px] md:text-xs text-muted-foreground mb-2 flex items-center gap-2 uppercase tracking-widest font-bold">
-                <Trophy className="w-3 h-3" />
+          <div className="grid grid-cols-2 gap-4 mb-8">
+            <div className="glass-card p-4 rounded-2xl bg-muted/30 border border-glass-border">
+              <p className="text-xs text-muted-foreground uppercase font-bold mb-1">
                 Score
               </p>
-              <p className="font-display text-3xl md:text-4xl font-bold text-secondary">
-                {result.score}
+              <p className="text-2xl font-display font-black">{result.score}</p>
+            </div>
+            <div className="glass-card p-4 rounded-2xl bg-muted/30 border border-glass-border">
+              <p className="text-xs text-muted-foreground uppercase font-bold mb-1">
+                Status
               </p>
-            </motion.div>
+              <p className="text-sm font-display font-black text-neon-green uppercase">
+                Verified
+              </p>
+            </div>
           </div>
 
           {/* Actions */}
@@ -155,15 +186,37 @@ export const ReactionGame = () => {
             transition={{ delay: 0.7 }}
             className="space-y-4"
           >
-            <CyberButton
-              variant="glow"
-              size="lg"
-              className="w-full h-14 md:h-16 text-lg relative z-40"
-              onClick={() => navigate("/leaderboard")}
-            >
-              <Trophy className="w-5 h-5" />
-              View Leaderboard
-            </CyberButton>
+            {!txHash ? (
+              <CyberButton
+                variant="glow"
+                size="lg"
+                className="w-full h-14 md:h-16 text-lg relative z-40"
+                onClick={handleOnChainSubmit}
+                disabled={isOnChainSubmitting}
+              >
+                {isOnChainSubmitting ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Upload className="w-5 h-5" />
+                )}
+                {isOnChainSubmitting ? "Recording..." : "Verify On-Chain"}
+              </CyberButton>
+            ) : (
+              <CyberButton
+                variant="outline"
+                size="lg"
+                className="w-full h-14 md:h-16 text-lg relative z-40 border-neon-green/50 text-neon-green hover:bg-neon-green/10"
+                onClick={() =>
+                  window.open(
+                    `${chainConfig.blockExplorers.default.url}/tx/${txHash}`,
+                    "_blank"
+                  )
+                }
+              >
+                <LinkIcon className="w-5 h-5" />
+                View on Explorer
+              </CyberButton>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <CyberButton

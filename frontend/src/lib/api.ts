@@ -10,6 +10,12 @@ export interface ScoreSubmissionResponse {
   signature: string;
 }
 
+export interface GlobalStats {
+  totalPlayers: number;
+  totalGames: number;
+  rewardsDistributed: number;
+}
+
 export interface LeaderboardEntry {
   wallet: string;
   score: number;
@@ -76,6 +82,11 @@ export const api = {
   }> {
     const response = await fetch(`${API_BASE_URL}/user/${wallet}`);
     if (!response.ok) throw new Error("Failed to fetch user stats");
+    return response.json();
+  },
+  async getGlobalStats(): Promise<GlobalStats> {
+    const response = await fetch(`${API_BASE_URL}/leaderboard/stats`);
+    if (!response.ok) throw new Error("Failed to fetch global stats");
     return response.json();
   },
 };

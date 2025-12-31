@@ -13,6 +13,9 @@ import { CyberButton } from "@/components/ui/cyber-button";
 import { useWallet } from "@/hooks/useWallet";
 import { useEffect, useState } from "react";
 import { api, LeaderboardEntry } from "@/lib/api";
+import { ethers } from "ethers";
+import { REFLEXA_ABI, REFLEXA_CONTRACT_ADDRESS } from "@/config/contracts";
+import { chainConfig } from "@/config/chain";
 
 const Profile = () => {
   const { isConnected, address, balance, connect } = useWallet();
@@ -23,6 +26,34 @@ const Profile = () => {
   } | null>(null);
   const [recentGames, setRecentGames] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [onChainStats, setOnChainStats] = useState<{
+    bestScore: number;
+    totalGames: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const fetchOnChainStats = async () => {
+      if (!address) return;
+      try {
+        const provider = new ethers.JsonRpcProvider(
+          chainConfig.rpcUrls.default.http[0]
+        );
+        const contract = new ethers.Contract(
+          REFLEXA_CONTRACT_ADDRESS,
+          REFLEXA_ABI,
+          provider
+        );
+        const stats = await contract.playerStats(address);
+        setOnChainStats({
+          bestScore: Number(stats.bestScore),
+          totalGames: Number(stats.totalGames),
+        });
+      } catch (error) {
+        console.error("Failed to fetch on-chain stats:", error);
+      }
+    };
+    fetchOnChainStats();
+  }, [address]);
 
   useEffect(() => {
     const fetchUserStats = async () => {
@@ -149,7 +180,11 @@ const Profile = () => {
               label: "Best Score",
               value: userStats?.bestScore || 0,
             },
-            { icon: Trophy, label: "Balance", value: `${balance} SKILL` },
+            {
+              icon: Trophy,
+              label: "On-Chain Best",
+              value: onChainStats?.bestScore || 0,
+            },
           ].map((stat, index) => {
             const Icon = stat.icon;
             return (
