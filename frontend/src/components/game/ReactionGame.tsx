@@ -114,15 +114,15 @@ export const ReactionGame = () => {
 
       toast.promise(tx.wait(), {
         loading: "Confirming on blockchain...",
-        success: (receipt: any) => {
+        success: (receipt: { hash: string }) => {
           setTxHash(receipt.hash);
           return "Score recorded on-chain!";
         },
         error: "Blockchain confirmation failed",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("On-chain submission failed:", error);
-      toast.error(error.message || "On-chain submission failed");
+      toast.error(error instanceof Error ? error.message : "On-chain submission failed");
     } finally {
       setIsOnChainSubmitting(false);
     }

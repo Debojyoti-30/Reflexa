@@ -3,6 +3,7 @@ import cors from "cors";
 import gameRoutes from "./routes/game.routes.js";
 import leaderboardRoutes from "./routes/leaderboard.routes.js";
 import userRoutes from "./routes/user.routes.js";
+import badgeRoutes from "./routes/badge.routes.js";
 
 const app = express();
 
@@ -13,6 +14,7 @@ app.use(express.json());
 app.use("/game", gameRoutes);
 app.use("/leaderboard", leaderboardRoutes);
 app.use("/user", userRoutes);
+app.use("/badges", badgeRoutes);
 
 app.get("/", (req, res) => {
   res.send("Backend is running on port 4000");

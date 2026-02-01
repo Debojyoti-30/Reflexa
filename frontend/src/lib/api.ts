@@ -89,4 +89,18 @@ export const api = {
     if (!response.ok) throw new Error("Failed to fetch global stats");
     return response.json();
   },
+  async getEligibleBadges(wallet: string): Promise<{ eligibleBadges: string[] }> {
+    const response = await fetch(`${API_BASE_URL}/badges/eligible/${wallet}`);
+    if (!response.ok) throw new Error("Failed to fetch eligible badges");
+    return response.json();
+  },
+  async claimBadgeSignature(wallet: string, badgeId: string): Promise<{ signature: string }> {
+    const response = await fetch(`${API_BASE_URL}/badges/claim-signature`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet, badgeId }),
+    });
+    if (!response.ok) throw new Error("Failed to claim badge signature");
+    return response.json();
+  },
 };

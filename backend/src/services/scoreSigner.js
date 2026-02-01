@@ -18,3 +18,18 @@ export async function signScore(walletAddress, roundId, score) {
   );
   return signature;
 }
+
+export async function signBadge(walletAddress, badgeId) {
+  if (!signerWallet) throw new Error("Signer wallet not initialized");
+
+  // Matches the contract: keccak256(abi.encodePacked(player, badgeId))
+  const messageHash = ethers.solidityPackedKeccak256(
+    ["address", "string"],
+    [walletAddress, badgeId]
+  );
+
+  const signature = await signerWallet.signMessage(
+    ethers.toBeArray(messageHash)
+  );
+  return signature;
+}
