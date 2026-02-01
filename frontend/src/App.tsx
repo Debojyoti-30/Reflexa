@@ -17,7 +17,7 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <PrivyProvider
-    appId="cmjsida1003yfl20c0px6eb29"
+    appId={import.meta.env.VITE_PRIVY_APP_ID}
     config={{
       appearance: {
         theme: "dark",
