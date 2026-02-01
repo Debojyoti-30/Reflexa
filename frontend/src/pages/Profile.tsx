@@ -7,6 +7,9 @@ import {
   Target,
   Wallet,
   Loader2,
+  Medal,
+  ShieldCheck,
+  Lock,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { CyberButton } from "@/components/ui/cyber-button";
@@ -14,8 +17,40 @@ import { useWallet } from "@/hooks/useWallet";
 import { useEffect, useState } from "react";
 import { api, LeaderboardEntry } from "@/lib/api";
 import { ethers } from "ethers";
-import { REFLEXA_ABI, REFLEXA_CONTRACT_ADDRESS } from "@/config/contracts";
+import {
+  REFLEXA_ABI,
+  REFLEXA_CONTRACT_ADDRESS,
+  REFLEXA_BADGE_ABI,
+  REFLEXA_BADGE_CONTRACT_ADDRESS,
+} from "@/config/contracts";
+
+const BADGE_METADATA: Record<
+  string,
+  { title: string; desc: string; icon: React.ComponentType }
+> = {
+  FIVE_GAMES: {
+    title: "Rookie",
+    desc: "Completed your first 5 verified games",
+    icon: Medal,
+  },
+  TOP_1_PERCENT: {
+    title: "Elite Reflex",
+    desc: "Reached the top 1% of all players",
+    icon: Trophy,
+  },
+  HUNDRED_GAMES: {
+    title: "Centurion",
+    desc: "Completed 100 verified games",
+    icon: Target,
+  },
+  PERFECT_SCORE: {
+    title: "Godspeed",
+    desc: "Achieved a reaction time ≤ 100ms",
+    icon: Zap,
+  },
+};
 import { chainConfig } from "@/config/chain";
+import { toast } from "sonner";
 
 const Profile = () => {
   const { isConnected, address, balance, connect } = useWallet();
@@ -30,30 +65,98 @@ const Profile = () => {
     bestScore: number;
     totalGames: number;
   } | null>(null);
+  const [earnedBadges, setEarnedBadges] = useState<string[]>([]);
+  const [eligibleBadges, setEligibleBadges] = useState<string[]>([]);
+  const [isMinting, setIsMinting] = useState<string | null>(null);
+
 
   useEffect(() => {
-    const fetchOnChainStats = async () => {
+    const fetchBlockchainData = async () => {
       if (!address) return;
       try {
         const provider = new ethers.JsonRpcProvider(
           chainConfig.rpcUrls.default.http[0]
         );
-        const contract = new ethers.Contract(
+
+        // 1. Fetch Stats
+        const gameContract = new ethers.Contract(
           REFLEXA_CONTRACT_ADDRESS,
           REFLEXA_ABI,
           provider
         );
-        const stats = await contract.playerStats(address);
+        const stats = await gameContract.playerStats(address);
         setOnChainStats({
           bestScore: Number(stats.bestScore),
           totalGames: Number(stats.totalGames),
         });
+
+        // 2. Fetch Earned Badges
+        const badgeContract = new ethers.Contract(
+          REFLEXA_BADGE_CONTRACT_ADDRESS,
+          REFLEXA_BADGE_ABI,
+          provider
+        );
+        const owned: string[] = [];
+        for (const badgeId of Object.keys(BADGE_METADATA)) {
+          const has = await badgeContract.hasBadge(badgeId, address);
+          if (has) owned.push(badgeId);
+        }
+        setEarnedBadges(owned);
       } catch (error) {
-        console.error("Failed to fetch on-chain stats:", error);
+        console.error("Failed to fetch blockchain data:", error);
       }
     };
-    fetchOnChainStats();
+    fetchBlockchainData();
   }, [address]);
+
+  useEffect(() => {
+    const fetchEligible = async () => {
+      if (!address || !isConnected) return;
+      try {
+        const { eligibleBadges } = await api.getEligibleBadges(address);
+        // Only keep those not already earned on-chain
+        setEligibleBadges(
+          eligibleBadges.filter((id) => !earnedBadges.includes(id))
+        );
+      } catch (error) {
+        console.error("Failed to fetch eligible badges:", error);
+      }
+    };
+    fetchEligible();
+  }, [address, isConnected, earnedBadges]);
+
+  const handleMintBadge = async (badgeId: string) => {
+    if (!address) return;
+    setIsMinting(badgeId);
+    try {
+      const { signature } = await api.claimBadgeSignature(address, badgeId);
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(
+        REFLEXA_BADGE_CONTRACT_ADDRESS,
+        REFLEXA_BADGE_ABI,
+        signer
+      );
+
+      const tx = await contract.mintBadge(address, badgeId, signature);
+      toast.info("Minting your badge...");
+      await tx.wait();
+
+      setEarnedBadges((prev) => [...prev, badgeId]);
+      setEligibleBadges((prev) => prev.filter((id) => id !== badgeId));
+      toast.success("Badge earned! Check your wallet.");
+    } catch (error: unknown) {
+      console.error("Minting failed:", error);
+      toast.error(
+        error instanceof Error && 'reason' in error 
+          ? (error as { reason: string }).reason 
+          : "Minting failed. Please try again."
+      );
+    } finally {
+      setIsMinting(null);
+    }
+  };
 
   useEffect(() => {
     const fetchUserStats = async () => {
@@ -203,6 +306,94 @@ const Profile = () => {
               </motion.div>
             );
           })}
+        </motion.div>
+
+        {/* Badges Cabinet */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="mb-12"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <Medal className="w-6 h-6 text-primary" />
+            <h2 className="font-display text-xl font-bold">Skill Badges</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {Object.entries(BADGE_METADATA).map(([id, meta], index) => {
+              const isEarned = earnedBadges.includes(id);
+              const isEligible = eligibleBadges.includes(id);
+              const Icon = meta.icon;
+
+              return (
+                <motion.div
+                  key={id}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.2 + index * 0.1 }}
+                  className={`glass-card p-6 rounded-2xl border-2 transition-all ${
+                    isEarned
+                      ? "border-neon-green/50 bg-neon-green/5"
+                      : isEligible
+                      ? "border-primary/50 bg-primary/5 animate-pulse-subtle"
+                      : "border-glass-border opacity-60"
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div
+                      className={`p-3 rounded-xl ${
+                        isEarned ? "bg-neon-green/20" : "bg-muted"
+                      }`}
+                    >
+                      <Icon
+                        className={`w-6 h-6 ${
+                          isEarned ? "text-neon-green" : "text-muted-foreground"
+                        }`}
+                      />
+                    </div>
+                    {isEarned && (
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-neon-green uppercase">
+                        <ShieldCheck className="w-3 h-3" />
+                        Verified
+                      </div>
+                    )}
+                  </div>
+
+                  <h3 className="font-display font-bold mb-1">{meta.title}</h3>
+                  <p className="text-xs text-muted-foreground mb-6 h-8">
+                    {meta.desc}
+                  </p>
+
+                  <div className="mt-auto">
+                    {isEarned ? (
+                      <div className="w-full py-2 rounded-lg bg-neon-green/10 text-neon-green text-center text-xs font-bold uppercase tracking-widest border border-neon-green/20">
+                        Achieved
+                      </div>
+                    ) : isEligible ? (
+                      <CyberButton
+                        size="sm"
+                        className="w-full"
+                        onClick={() => handleMintBadge(id)}
+                        disabled={isMinting === id}
+                      >
+                        {isMinting === id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          "Claim Badge"
+                        )}
+                      </CyberButton>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2 py-2 text-muted-foreground text-xs font-medium">
+                        <Lock className="w-3 h-3" />
+                        <span>Locked</span>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
         </motion.div>
 
         {/* Recent Games */}
